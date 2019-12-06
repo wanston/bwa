@@ -15,6 +15,7 @@
 #include "kvec.h"
 #include "ksort.h"
 #include "utils.h"
+#include "profile.h"
 
 #ifdef USE_MALLOC_WRAPPERS
 #  include "malloc_wrap.h"
@@ -256,6 +257,7 @@ mem_chain_v mem_chain(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bn
 	kbtree_t(chn) *tree;
 	smem_aux_t *aux;
 
+	PROFILE_START(seed);
 	kv_init(chain);
 	if (len < opt->min_seed_len) return chain; // if the query is shorter than the seed length, no match
 	tree = kb_init(chn, KB_DEFAULT_SIZE);
@@ -269,6 +271,9 @@ mem_chain_v mem_chain(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bn
 		if (sb > e) l_rep += e - b, b = sb, e = se;
 		else e = e > se? e : se;
 	}
+	PROFILE_END(seed);
+
+	PROFILE_START(chain);
 	l_rep += e - b;
 	for (i = 0; i < aux->mem.n; ++i) {
 		bwtintv_t *p = &aux->mem.a[i];
@@ -311,6 +316,8 @@ mem_chain_v mem_chain(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bn
 	if (bwa_verbose >= 4) printf("* fraction of repetitive seeds: %.3f\n", (float)l_rep / len);
 
 	kb_destroy(chn, tree);
+
+	PROFILE_END(chain);
 	return chain;
 }
 
@@ -1061,10 +1068,14 @@ mem_alnreg_v mem_align1_core(const mem_opt_t *opt, const bwt_t *bwt, const bntse
 		seq[i] = seq[i] < 4? seq[i] : nst_nt4_table[(int)seq[i]];
 
 	chn = mem_chain(opt, bwt, bns, l_seq, (uint8_t*)seq, buf);
+
+	PROFILE_START(chain);
 	chn.n = mem_chain_flt(opt, chn.n, chn.a);
 	mem_flt_chained_seeds(opt, bns, pac, l_seq, (uint8_t*)seq, chn.n, chn.a);
 	if (bwa_verbose >= 4) mem_print_chain(bns, &chn);
+	PROFILE_END(chain);
 
+	PROFILE_START(extend);
 	kv_init(regs);
 	for (i = 0; i < chn.n; ++i) {
 		mem_chain_t *p = &chn.a[i];
@@ -1086,6 +1097,7 @@ mem_alnreg_v mem_align1_core(const mem_opt_t *opt, const bwt_t *bwt, const bntse
 		if (p->rid >= 0 && bns->anns[p->rid].is_alt)
 			p->is_alt = 1;
 	}
+	PROFILE_END(extend);
 	return regs;
 }
 

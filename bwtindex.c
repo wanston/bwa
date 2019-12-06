@@ -243,16 +243,25 @@ int bwa_index(int argc, char *argv[]) // the "index" command
 		fprintf(stderr, "         `-a div' do not work not for long genomes.\n\n");
 		return 1;
 	}
-	if (prefix == 0) {
+	if (prefix == 0) { // prefix 存储的是fasta文件的路径
 		prefix = malloc(strlen(argv[optind]) + 4);
 		strcpy(prefix, argv[optind]);
 		if (is_64) strcat(prefix, ".64");
 	}
-	bwa_idx_build(argv[optind], prefix, algo_type, block_size);
+	bwa_idx_build(argv[optind], prefix, algo_type, block_size); // 生成索引
 	free(prefix);
 	return 0;
 }
 
+/**
+ * 生成索引。
+ *
+ * @param fa			fasta文件的文件路径
+ * @param prefix		待生成的索引文件的前缀
+ * @param algo_type		algorithm type，指定生成BWT的算法；默认为0，表示不指定算法，而是根据fasta文件中序列的长度决定采用哪种算法，
+ * @param block_size	默认为10,000,000
+ * @return 0
+ */
 int bwa_idx_build(const char *fa, const char *prefix, int algo_type, int block_size)
 {
 	extern void bwa_pac_rev_core(const char *fn, const char *fn_rev);
@@ -266,14 +275,14 @@ int bwa_idx_build(const char *fa, const char *prefix, int algo_type, int block_s
 	str3 = (char*)calloc(strlen(prefix) + 10, 1);
 
 	{ // nucleotide indexing
-		gzFile fp = xzopen(fa, "r");
+		gzFile fp = xzopen(fa, "r");// 尝试调用zlib库打开FASTA的压缩文件，同时也可以打开非压缩文件，fp是gzFile类型的
 		t = clock();
 		if (bwa_verbose >= 3) fprintf(stderr, "[bwa_index] Pack FASTA... ");
-		l_pac = bns_fasta2bntseq(fp, prefix, 0);
+		l_pac = bns_fasta2bntseq(fp, prefix, 0);// 生成.pac, .ann和.amb文件，返回pac文件中bp的长度。
 		if (bwa_verbose >= 3) fprintf(stderr, "%.2f sec\n", (float)(clock() - t) / CLOCKS_PER_SEC);
 		err_gzclose(fp);
 	}
-	if (algo_type == 0) algo_type = l_pac > 50000000? 2 : 3; // set the algorithm for generating BWT
+	if (algo_type == 0) algo_type = l_pac > 50000000? 2 : 3; // set the algorithm for generating BWT，algo_type值为0表示没有指定算法，那么就根据bp的长度来确定算法
 	{
 		strcpy(str, prefix); strcat(str, ".pac");
 		strcpy(str2, prefix); strcat(str2, ".bwt");

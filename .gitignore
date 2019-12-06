@@ -5,3 +5,7 @@ test64
 .*.swp
 Makefile.bak
 bwamem-lite
+cmake-build-debug
+CMakeLists.txt
+minimap2
+.idea/

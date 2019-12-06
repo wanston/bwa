@@ -278,6 +278,18 @@ static uint8_t *add1(const kseq_t *seq, bntseq_t *bns, uint8_t *pac, int64_t *m_
 	return pac;
 }
 
+/**
+ * 该函数从fasta文件生成.pac .ann .amb文件，其中pac文件包含了正向序列和反向互补序列。
+ *
+ * .pac文件是fasta文件中所有的序列先拼接起来形成序列1，然后再把拼接好的序列反向互补生成
+ * 序列2，再把序列2附加到序列1后面，得到最终的pac序列。最后把pac序列用2bit表示每个bp生成
+ * 二进制文件，即.pac文件。
+ *
+ * @param fp_fa         打开的fasta文件的句柄
+ * @param prefix        fasta文件的路径
+ * @param for_only      0
+ * @return pac文件中保存的序列的总长度（bp的个数）。
+ */
 int64_t bns_fasta2bntseq(gzFile fp_fa, const char *prefix, int for_only)
 {
 	extern void seq_reverse(int len, ubyte_t *seq, int is_comp); // in bwaseqio.c
@@ -301,10 +313,11 @@ int64_t bns_fasta2bntseq(gzFile fp_fa, const char *prefix, int for_only)
 	pac = calloc(m_pac/4, 1);
 	q = bns->ambs;
 	strcpy(name, prefix); strcat(name, ".pac");
-	fp = xopen(name, "wb");
+	fp = xopen(name, "wb");// 在FASTA文件同级目录下创建fasta.pac文件，fp指向pac文件
 	// read sequences
-	while (kseq_read(seq) >= 0) pac = add1(seq, bns, pac, &m_pac, &m_seqs, &m_holes, &q);
-	if (!for_only) { // add the reverse complemented sequence
+	while (kseq_read(seq) >= 0) // 每次读取一条序列，把读到的内容存入seq，循环读取直到读完对应的fasta文件
+		pac = add1(seq, bns, pac, &m_pac, &m_seqs, &m_holes, &q); // 把seq表示的序列，经过处理，然后添加到bns中
+	if (!for_only) { // add the reverse complemented sequence，// 向pac中紧接着加上反向互补序列，bns->l_pac的值也double。
 		int64_t ll_pac = (bns->l_pac * 2 + 3) / 4 * 4;
 		if (ll_pac > m_pac) pac = realloc(pac, ll_pac/4);
 		memset(pac + (bns->l_pac+3)/4, 0, (ll_pac - (bns->l_pac+3)/4*4) / 4);
@@ -312,7 +325,7 @@ int64_t bns_fasta2bntseq(gzFile fp_fa, const char *prefix, int for_only)
 			_set_pac(pac, bns->l_pac, 3-_get_pac(pac, l));
 	}
 	ret = bns->l_pac;
-	{ // finalize .pac file
+	{ // finalize .pac file，将pac数据写入pac文件
 		ubyte_t ct;
 		err_fwrite(pac, 1, (bns->l_pac>>2) + ((bns->l_pac&3) == 0? 0 : 1), fp);
 		// the following codes make the pac file size always (l_pac/4+1+1)
@@ -326,7 +339,7 @@ int64_t bns_fasta2bntseq(gzFile fp_fa, const char *prefix, int for_only)
 		err_fflush(fp);
 		err_fclose(fp);
 	}
-	bns_dump(bns, prefix);
+	bns_dump(bns, prefix); // 根据bns中的anns信息，生成.ann文件；根据bns中的ambs信息，生成.amb文件
 	bns_destroy(bns);
 	kseq_destroy(seq);
 	free(pac);

@@ -325,11 +325,11 @@ int main_mem(int argc, char *argv[])
 	} else update_a(opt, &opt0);
 	bwa_fill_scmat(opt->a, opt->b, opt->mat);
 
-	aux.idx = bwa_idx_load_from_shm(argv[optind]);
-	if (aux.idx == 0) {
+	aux.idx = bwa_idx_load_from_shm(argv[optind]); // argv[optind]是reference的fasta文件路径，这里读取失败，到下面继续读取
+	if (aux.idx == 0) { // 读取需要的amb，ann，pac，bwt，sa文件
 		if ((aux.idx = bwa_idx_load(argv[optind], BWA_IDX_ALL)) == 0) return 1; // FIXME: memory leak
 	} else if (bwa_verbose >= 3)
-		fprintf(stderr, "[M::%s] load the bwa index from shared memory\n", __func__);
+		fprintf(stderr, "[M::%s] load the bwa index from shared memory\n", __func__); // 打开一个read的FASTQ文件
 	if (ignore_alt)
 		for (i = 0; i < aux.idx->bns->n_seqs; ++i)
 			aux.idx->bns->anns[i].is_alt = 0;
@@ -356,7 +356,7 @@ int main_mem(int argc, char *argv[])
 			opt->flag |= MEM_F_PE;
 		}
 	}
-	bwa_print_sam_hdr(aux.idx->bns, hdr_line);
+	bwa_print_sam_hdr(aux.idx->bns, hdr_line); // 写入SAM的头文件
 	aux.actual_chunk_size = fixed_chunk_size > 0? fixed_chunk_size : opt->chunk_size * opt->n_threads;
 	kt_pipeline(no_mt_io? 1 : 2, process, &aux, 3);
 	free(hdr_line);

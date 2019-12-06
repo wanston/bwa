@@ -2,10 +2,16 @@
 #include <string.h>
 #include "kstring.h"
 #include "utils.h"
+#include "profile.h"
 
 #ifndef PACKAGE_VERSION
 #define PACKAGE_VERSION "0.7.17-r1198-dirty"
 #endif
+
+PROFILE_INIT0;
+PROFILE_INIT(seed);
+PROFILE_INIT(chain);
+PROFILE_INIT(extend);
 
 int bwa_fa2pac(int argc, char *argv[]);
 int bwa_pac2bwt(int argc, char *argv[]);
@@ -100,5 +106,9 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "\n[%s] Real time: %.3f sec; CPU: %.3f sec\n", __func__, realtime() - t_real, cputime());
 	}
 	free(bwa_pg);
+
+	PROFILE_REPORT(seed);
+	PROFILE_REPORT(chain);
+	PROFILE_REPORT(extend);
 	return ret;
 }
