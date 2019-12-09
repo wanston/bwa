@@ -119,6 +119,7 @@ static void mem_collect_intv(const mem_opt_t *opt, const bwt_t *bwt, int len, co
 	int split_len = (int)(opt->min_seed_len * opt->split_factor + .499);
 	a->mem.n = 0;
 	// first pass: find all SMEMs
+	PROFILE_START(seed_pass1);
 	while (x < len) {
 		if (seq[x] < 4) {
 			x = bwt_smem1(bwt, len, seq, x, start_width, &a->mem1, a->tmpv);
@@ -130,7 +131,10 @@ static void mem_collect_intv(const mem_opt_t *opt, const bwt_t *bwt, int len, co
 			}
 		} else ++x;
 	}
+	PROFILE_END(seed_pass1);
+
 	// second pass: find MEMs inside a long SMEM
+	PROFILE_START(seed_pass2);
 	old_n = a->mem.n;
 	for (k = 0; k < old_n; ++k) {
 		bwtintv_t *p = &a->mem.a[k];
@@ -141,7 +145,10 @@ static void mem_collect_intv(const mem_opt_t *opt, const bwt_t *bwt, int len, co
 			if ((uint32_t)a->mem1.a[i].info - (a->mem1.a[i].info>>32) >= opt->min_seed_len)
 				kv_push(bwtintv_t, a->mem, a->mem1.a[i]);
 	}
+	PROFILE_END(seed_pass2);
+
 	// third pass: LAST-like
+	PROFILE_START(seed_pass3);
 	if (opt->max_mem_intv > 0) {
 		x = 0;
 		while (x < len) {
@@ -158,6 +165,7 @@ static void mem_collect_intv(const mem_opt_t *opt, const bwt_t *bwt, int len, co
 			} else ++x;
 		}
 	}
+	PROFILE_END(seed_pass3);
 	// sort
 	ks_introsort(mem_intv, a->mem.n, a->mem.a);
 }

@@ -39,27 +39,27 @@ typedef uint8_t ubyte_t;
 #endif
 
 typedef struct {
-	int64_t offset;
-	int32_t len;
-	int32_t n_ambs;
+	int64_t offset; // 序列在pac上的偏移。例如，两条序列分别长100bp 200bp，那么它们的偏移分别是0bp 100bp
+	int32_t len; // 序列长度，即bp数
+	int32_t n_ambs; // 该序列的holes的数目
 	uint32_t gi;
 	int32_t is_alt;
-	char *name, *anno;
-} bntann1_t;
+	char *name, *anno; // 序列的名字，和名字的注释。
+} bntann1_t; // 序列的注释信息
 
 typedef struct {
-	int64_t offset;
-	int32_t len;
-	char amb;
-} bntamb1_t;
+	int64_t offset; // hole在pac上的偏移
+	int32_t len; // hole的长度，即N的个数
+	char amb; // 填充hole的字符，也就是N
+} bntamb1_t; // hole的信息
 
 typedef struct {
-	int64_t l_pac;
-	int32_t n_seqs;
-	uint32_t seed;
-	bntann1_t *anns; // n_seqs elements
+	int64_t l_pac; // pac序列的bp数（值为fasta文件中所有序列的bp数相加，再乘以二）
+	int32_t n_seqs; // fasta文件中序列的条数
+	uint32_t seed;	// 定值，为11
+	bntann1_t *anns; // n_seqs elements，保存序列的注释信息
 	int32_t n_holes;
-	bntamb1_t *ambs; // n_holes elements
+	bntamb1_t *ambs; // n_holes elements，保存序列的holes信息，hole指的是序列中为N的区域。例如ACTNGGCANNNTCGACGT中就有两个hole。这里保存的是所有序列的holes，不同的序列的holes的边界保存在anns中。
 	FILE *fp_pac;
 } bntseq_t;
 

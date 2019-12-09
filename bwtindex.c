@@ -76,13 +76,13 @@ bwt_t *bwt_pac2bwt(const char *fn_pac, int use_is)
 	fp = xopen(fn_pac, "rb");
 
 	// prepare sequence
-	pac_size = (bwt->seq_len>>2) + ((bwt->seq_len&3) == 0? 0 : 1);
+	pac_size = (bwt->seq_len>>2) + ((bwt->seq_len&3) == 0? 0 : 1); // 存放pac序列的buffer的大小
 	buf2 = (ubyte_t*)calloc(pac_size, 1);
 	err_fread_noeof(buf2, 1, pac_size, fp);
 	err_fclose(fp);
 	memset(bwt->L2, 0, 5 * 4);
 	buf = (ubyte_t*)calloc(bwt->seq_len + 1, 1);
-	for (i = 0; i < bwt->seq_len; ++i) {
+	for (i = 0; i < bwt->seq_len; ++i) {// 从pac序列中解析出碱基，求解C表（需要注意pac序列中不会保存N，N在pac中是用任意的某一碱基代替的）。
 		buf[i] = buf2[i>>2] >> ((3 - (i&3)) << 1) & 3;
 		++bwt->L2[1+buf[i]];
 	}

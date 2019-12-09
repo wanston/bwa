@@ -45,9 +45,9 @@ typedef uint64_t bwtint_t;
 
 typedef struct {
 	bwtint_t primary; // S^{-1}(0), or the primary index of BWT
-	bwtint_t L2[5]; // C(), cumulative count
-	bwtint_t seq_len; // sequence length
-	bwtint_t bwt_size; // size of bwt, about seq_len/4
+	bwtint_t L2[5]; // C(), cumulative count，C[0]到C[4]分别表示小于ACGTN的字符数
+	bwtint_t seq_len; // sequence length, fasta中所有序列的长度相加得到
+	bwtint_t bwt_size; // size of bwt, about seq_len/4，？？？ 不是/16吗？
 	uint32_t *bwt; // BWT
 	// occurance array, separated to two parts
 	uint32_t cnt_table[256];

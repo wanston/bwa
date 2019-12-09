@@ -230,6 +230,20 @@ void bns_destroy(bntseq_t *bns)
 #define _set_pac(pac, l, c) ((pac)[(l)>>2] |= (c)<<((~(l)&3)<<1))
 #define _get_pac(pac, l) ((pac)[(l)>>2]>>((~(l)&3)<<1)&3)
 
+/**
+ * 读取seq中的内容，把seq中的保存到bns和pac中。
+ * bns->anns保存的是注释信息
+ * bns->ambs保存的是hole的信息，hole指的是如果序列中有（连续的）N存在那么N所在的区域被称为hole
+ *
+ * @param seq
+ * @param bns
+ * @param pac
+ * @param m_pac         pac的capacity，单位不是字节而是bp数
+ * @param m_seqs        bns->anns的capacity
+ * @param m_holes       bns->ambs的capacity
+ * @param q             q最后指向bns->ambs的最后一个元素
+ * @return
+ */
 static uint8_t *add1(const kseq_t *seq, bntseq_t *bns, uint8_t *pac, int64_t *m_pac, int *m_seqs, int *m_holes, bntamb1_t **q)
 {
 	bntann1_t *p;
@@ -287,7 +301,7 @@ static uint8_t *add1(const kseq_t *seq, bntseq_t *bns, uint8_t *pac, int64_t *m_
  *
  * @param fp_fa         打开的fasta文件的句柄
  * @param prefix        fasta文件的路径
- * @param for_only      0
+ * @param for_only      0表示不把反向互补序列添加到pac，1则表示添加
  * @return pac文件中保存的序列的总长度（bp的个数）。
  */
 int64_t bns_fasta2bntseq(gzFile fp_fa, const char *prefix, int for_only)
@@ -300,7 +314,7 @@ int64_t bns_fasta2bntseq(gzFile fp_fa, const char *prefix, int for_only)
 	int32_t m_seqs, m_holes;
 	int64_t ret = -1, m_pac, l;
 	bntamb1_t *q;
-	FILE *fp;
+	FILE *fp; // 打开的.pac文件的句柄
 
 	// initialization
 	seq = kseq_init(fp_fa);
@@ -317,6 +331,7 @@ int64_t bns_fasta2bntseq(gzFile fp_fa, const char *prefix, int for_only)
 	// read sequences
 	while (kseq_read(seq) >= 0) // 每次读取一条序列，把读到的内容存入seq，循环读取直到读完对应的fasta文件
 		pac = add1(seq, bns, pac, &m_pac, &m_seqs, &m_holes, &q); // 把seq表示的序列，经过处理，然后添加到bns中
+
 	if (!for_only) { // add the reverse complemented sequence，// 向pac中紧接着加上反向互补序列，bns->l_pac的值也double。
 		int64_t ll_pac = (bns->l_pac * 2 + 3) / 4 * 4;
 		if (ll_pac > m_pac) pac = realloc(pac, ll_pac/4);

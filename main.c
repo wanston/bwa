@@ -13,6 +13,10 @@ PROFILE_INIT(seed);
 PROFILE_INIT(chain);
 PROFILE_INIT(extend);
 
+PROFILE_INIT(seed_pass1);
+PROFILE_INIT(seed_pass2);
+PROFILE_INIT(seed_pass3);
+
 int bwa_fa2pac(int argc, char *argv[]);
 int bwa_pac2bwt(int argc, char *argv[]);
 int bwa_bwtupdate(int argc, char *argv[]);
@@ -110,5 +114,8 @@ int main(int argc, char *argv[])
 	PROFILE_REPORT(seed);
 	PROFILE_REPORT(chain);
 	PROFILE_REPORT(extend);
+	PROFILE_REPORT(seed_pass1);
+	PROFILE_REPORT(seed_pass2);
+	PROFILE_REPORT(seed_pass3);
 	return ret;
 }

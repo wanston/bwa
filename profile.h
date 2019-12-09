@@ -36,11 +36,15 @@
 
 #define PROFILE_REPORT(name) \
         extern double name##_cost_sum; \
-        int name##_i; \
-        for(name##_i=0; name##_i<PROFILE_THREAD_NUM; name##_i++){ \
-            name##_cost_sum += name##_cost[name##_i]; \
+        if(! name##_cost){ \
+            name##_cost_sum = 0.0; \
+        }else{ \
+            int name##_i; \
+            for(name##_i=0; name##_i<PROFILE_THREAD_NUM; name##_i++){ \
+                name##_cost_sum += name##_cost[name##_i]; \
+            } \
         } \
-        fprintf(stderr, "[WangTong Profile] CPU: %s %.3f seconds \n", #name, name##_cost_sum);
+        fprintf(stderr, "[WangTong Profile] CPU: %s %.5f seconds \n", #name, name##_cost_sum);
 
 extern __thread int pro_tid;
 #endif //MINIMAP2_PROFILE_H
