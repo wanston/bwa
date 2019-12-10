@@ -62,10 +62,17 @@ int64_t bwa_seq_len(const char *fn_pac)
 	return (pac_len - 1) * 4 + (int)c;
 }
 
+/**
+ * 计算pac序列的bwt变换。
+ *
+ * @param fn_pac        pac文件的路径
+ * @param use_is        决定了计算bwt变换的算法
+ * @return
+ */
 bwt_t *bwt_pac2bwt(const char *fn_pac, int use_is)
 {
 	bwt_t *bwt;
-	ubyte_t *buf, *buf2;
+	ubyte_t *buf, *buf2; // buf用来存储原始序列，buf2用来存储pac序列。
 	int64_t i, pac_size;
 	FILE *fp;
 
@@ -82,7 +89,7 @@ bwt_t *bwt_pac2bwt(const char *fn_pac, int use_is)
 	err_fclose(fp);
 	memset(bwt->L2, 0, 5 * 4);
 	buf = (ubyte_t*)calloc(bwt->seq_len + 1, 1);
-	for (i = 0; i < bwt->seq_len; ++i) {// 从pac序列中解析出碱基，求解C表（需要注意pac序列中不会保存N，N在pac中是用任意的某一碱基代替的）。
+	for (i = 0; i < bwt->seq_len; ++i) {// 从pac序列中解析出原始序列存在buf中，求解C表（需要注意pac序列中不会保存N，N在pac中是用任意的某一碱基代替的）。
 		buf[i] = buf2[i>>2] >> ((3 - (i&3)) << 1) & 3;
 		++bwt->L2[1+buf[i]];
 	}
@@ -148,6 +155,21 @@ int bwa_pac2bwt(int argc, char *argv[]) // the "pac2bwt" command; IMPORTANT: bwt
 
 #define bwt_B00(b, k) ((b)->bwt[(k)>>4]>>((~(k)&0xf)<<1)&3)
 
+/**
+ * 更新bwt，原来的bwt序列是单纯的序列的bwt变换，每2bit表示一个碱基。
+ * 该函数把occurence信息添加到bwt序列中，128bp记录一次occurence信息。
+ * 具体的格式如下：
+ *      32 Byte: O表
+ *      32 Byte: 128bp的bwt序列
+ *      32 Byte: O表
+ *      32 Byte: 128bp的bwt序列
+ *      ...
+ *      32 Byte: O表
+ *      <32Byte: <128bp的bwt序列
+ *      32 Byte: O表
+ *
+ * @param bwt       bwt变换
+ */
 void bwt_bwtupdate_core(bwt_t *bwt)
 {
 	bwtint_t i, k, c[4], n_occ;
@@ -165,7 +187,7 @@ void bwt_bwtupdate_core(bwt_t *bwt)
 		if (i % 16 == 0) buf[k++] = bwt->bwt[i/16]; // 16 == sizeof(uint32_t)/2
 		++c[bwt_B00(bwt, i)];
 	}
-	// the last element
+	// the last element, 每128bp记录一次c，记录的c是前128bp的c，因此最后<=128bp的c在这里记录。
 	memcpy(buf + k, c, sizeof(bwtint_t) * 4);
 	xassert(k + sizeof(bwtint_t) == bwt->bwt_size, "inconsistent bwt_size");
 	// update bwt
@@ -254,7 +276,12 @@ int bwa_index(int argc, char *argv[]) // the "index" command
 }
 
 /**
- * 生成索引。
+ * 生成索引，过程主要分为5步。
+ * step1: 读取fasta文件，生成.ann .amb 和 带反向互补序列的.pac文件
+ * step2: 根据step1生成的.pac文件计算序列的bwt变换，生成.bwt文件
+ * step3: 向step2中得到的bwt变换中添加occ信息，更新.bwt文件
+ * step4: 读取fasta文件，重新生成不带反向互补序列的.pac .ann .amb文件，覆盖掉step1中生成的文件
+ * step5: 从.bwt文件计算后缀数组sa，生成.sa文件
  *
  * @param fa			fasta文件的文件路径
  * @param prefix		待生成的索引文件的前缀
@@ -274,6 +301,7 @@ int bwa_idx_build(const char *fa, const char *prefix, int algo_type, int block_s
 	str2 = (char*)calloc(strlen(prefix) + 10, 1);
 	str3 = (char*)calloc(strlen(prefix) + 10, 1);
 
+	// step 1
 	{ // nucleotide indexing
 		gzFile fp = xzopen(fa, "r");// 尝试调用zlib库打开FASTA的压缩文件，同时也可以打开非压缩文件，fp是gzFile类型的
 		t = clock();
@@ -283,12 +311,15 @@ int bwa_idx_build(const char *fa, const char *prefix, int algo_type, int block_s
 		err_gzclose(fp);
 	}
 	if (algo_type == 0) algo_type = l_pac > 50000000? 2 : 3; // set the algorithm for generating BWT，algo_type值为0表示没有指定算法，那么就根据bp的长度来确定算法
+
+	// step 2
 	{
 		strcpy(str, prefix); strcat(str, ".pac");
 		strcpy(str2, prefix); strcat(str2, ".bwt");
 		t = clock();
 		if (bwa_verbose >= 3) fprintf(stderr, "[bwa_index] Construct BWT for the packed sequence...\n");
-		if (algo_type == 2) bwt_bwtgen2(str, str2, block_size);
+		if (algo_type == 2)
+		    bwt_bwtgen2(str, str2, block_size);
 		else if (algo_type == 1 || algo_type == 3) {
 			bwt_t *bwt;
 			bwt = bwt_pac2bwt(str, algo_type == 3);
@@ -297,6 +328,8 @@ int bwa_idx_build(const char *fa, const char *prefix, int algo_type, int block_s
 		}
 		if (bwa_verbose >= 3) fprintf(stderr, "[bwa_index] %.2f seconds elapse.\n", (float)(clock() - t) / CLOCKS_PER_SEC);
 	}
+
+	// step 3
 	{
 		bwt_t *bwt;
 		strcpy(str, prefix); strcat(str, ".bwt");
@@ -308,6 +341,8 @@ int bwa_idx_build(const char *fa, const char *prefix, int algo_type, int block_s
 		bwt_destroy(bwt);
 		if (bwa_verbose >= 3) fprintf(stderr, "%.2f sec\n", (float)(clock() - t) / CLOCKS_PER_SEC);
 	}
+
+	// step 4
 	{
 		gzFile fp = xzopen(fa, "r");
 		t = clock();
@@ -316,6 +351,8 @@ int bwa_idx_build(const char *fa, const char *prefix, int algo_type, int block_s
 		if (bwa_verbose >= 3) fprintf(stderr, "%.2f sec\n", (float)(clock() - t) / CLOCKS_PER_SEC);
 		err_gzclose(fp);
 	}
+
+	// step 5
 	{
 		bwt_t *bwt;
 		strcpy(str, prefix); strcat(str, ".bwt");

@@ -1,0 +1,2 @@
+mem -t 1 ./data/test.fasta ./data/test.fastq
+index ./data/test.fasta

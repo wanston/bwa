@@ -50,6 +50,14 @@ void bwt_gen_cnt_table(bwt_t *bwt)
 	}
 }
 
+/**
+ * k是bwt的第k行，k的取值范围[0, bwt->seq——len],该函数寻找第k行表示的prefix向前
+ * 扩展一个字符后所在的行，然后返回该行的索引。
+ *
+ * @param bwt
+ * @param k
+ * @return
+ */
 static inline bwtint_t bwt_invPsi(const bwt_t *bwt, bwtint_t k) // compute inverse CSA
 {
 	bwtint_t x = k - (k > bwt->primary);
@@ -58,7 +66,13 @@ static inline bwtint_t bwt_invPsi(const bwt_t *bwt, bwtint_t k) // compute inver
 	return k == bwt->primary? 0 : x;
 }
 
-// bwt->bwt and bwt->occ must be precalculated
+/**
+ * 从bwt->bwt序列计算后缀数组，然后存储到bwt->sa。
+ * bwt->bwt and bwt->occ must be precalculated
+ *
+ * @param bwt
+ * @param intv
+ */
 void bwt_cal_sa(bwt_t *bwt, int intv)
 {
 	bwtint_t isa, sa, i; // S(isa) = sa
@@ -70,16 +84,16 @@ void bwt_cal_sa(bwt_t *bwt, int intv)
 
 	if (bwt->sa) free(bwt->sa);
 	bwt->sa_intv = intv;
-	bwt->n_sa = (bwt->seq_len + intv) / intv;
+	bwt->n_sa = (bwt->seq_len + intv) / intv; // 这里实际是(bwt->seq_len + 1 + (intv-1)) / intv，是后缀数组sa的长度除以32然后向上取整。
 	bwt->sa = (bwtint_t*)calloc(bwt->n_sa, sizeof(bwtint_t));
 	// calculate SA value
 	isa = 0; sa = bwt->seq_len;
-	for (i = 0; i < bwt->seq_len; ++i) {
+	for (i = 0; i < bwt->seq_len; ++i) { // 未经压缩的后缀数组sa的长度应是 bwt->seq_len+1，因为sa还要包含$对应的值。该循环只循环seq_len次，因此该循环执行完后还会在执行一个if语句。
 		if (isa % intv == 0) bwt->sa[isa/intv] = sa;
 		--sa;
-		isa = bwt_invPsi(bwt, isa);
+		isa = bwt_invPsi(bwt, isa); // 该函数
 	}
-	if (isa % intv == 0) bwt->sa[isa/intv] = sa;
+	if (isa % intv == 0) bwt->sa[isa/intv] = sa; // 到了这里isa就是$所在的行的索引。
 	bwt->sa[0] = (bwtint_t)-1; // before this line, bwt->sa[0] = bwt->seq_len
 }
 
@@ -285,6 +299,19 @@ static void bwt_reverse_intvs(bwtintv_v *p)
 		}
 	}
 }
+
+/**
+ *
+ * @param bwt
+ * @param len
+ * @param q
+ * @param x             从q[x]处开始进行前向扩展和后向扩展
+ * @param min_intv
+ * @param max_intv
+ * @param mem
+ * @param tmpvec
+ * @return
+ */
 // NOTE: $max_intv is not currently used in BWA-MEM
 int bwt_smem1a(const bwt_t *bwt, int len, const uint8_t *q, int x, int min_intv, uint64_t max_intv, bwtintv_v *mem, bwtintv_v *tmpvec[2])
 {
@@ -298,7 +325,7 @@ int bwt_smem1a(const bwt_t *bwt, int len, const uint8_t *q, int x, int min_intv,
 	kv_init(a[0]); kv_init(a[1]);
 	prev = tmpvec && tmpvec[0]? tmpvec[0] : &a[0]; // use the temporary vector if provided
 	curr = tmpvec && tmpvec[1]? tmpvec[1] : &a[1];
-	bwt_set_intv(bwt, q[x], ik); // the initial interval of a single base
+	bwt_set_intv(bwt, q[x], ik); // the initial interval of a single base，把碱基q[x]对应的interval存储在ik中。
 	ik.info = x + 1;
 
 	for (i = x + 1, curr->n = 0; i < len; ++i) { // forward search
@@ -306,7 +333,7 @@ int bwt_smem1a(const bwt_t *bwt, int len, const uint8_t *q, int x, int min_intv,
 			kv_push(bwtintv_t, *curr, ik);
 			break;
 		} else if (q[i] < 4) { // an A/C/G/T base
-			c = 3 - q[i]; // complement of q[i]
+			c = 3 - q[i]; // complement of q[i], 因为是forward extention，所以用互补碱基
 			bwt_extend(bwt, &ik, ok, 0);
 			if (ok[c].x[2] != ik.x[2]) { // change of the interval size
 				kv_push(bwtintv_t, *curr, ik);

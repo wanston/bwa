@@ -40,7 +40,7 @@ static void *process(void *shared, int step, void *_data)
 	ktp_aux_t *aux = (ktp_aux_t*)shared;
 	ktp_data_t *data = (ktp_data_t*)_data;
 	int i;
-	if (step == 0) {
+	if (step == 0) { // 读取reads，存储到ktp_data_t *ret中，ret会作为参数_data传给step1。
 		ktp_data_t *ret;
 		int64_t size = 0;
 		ret = calloc(1, sizeof(ktp_data_t));

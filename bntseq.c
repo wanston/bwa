@@ -293,7 +293,7 @@ static uint8_t *add1(const kseq_t *seq, bntseq_t *bns, uint8_t *pac, int64_t *m_
 }
 
 /**
- * 该函数从fasta文件生成.pac .ann .amb文件，其中pac文件包含了正向序列和反向互补序列。
+ * 该函数从fasta文件生成.pac .ann .amb文件保存在fasta文件同一路径下，其中pac文件包含了正向序列和反向互补序列。
  *
  * .pac文件是fasta文件中所有的序列先拼接起来形成序列1，然后再把拼接好的序列反向互补生成
  * 序列2，再把序列2附加到序列1后面，得到最终的pac序列。最后把pac序列用2bit表示每个bp生成

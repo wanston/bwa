@@ -112,6 +112,15 @@ static void smem_aux_destroy(smem_aux_t *a)
 	free(a);
 }
 
+/**
+ * seed的过程，从read中找到精确匹配的mem。
+ *
+ * @param opt       配置选项
+ * @param bwt       索引
+ * @param len       read的长度
+ * @param seq       read，每个字节表示一个碱基，ACGT分别用0123表示
+ * @param a         找到的mem信息保存在a->mem中
+ */
 static void mem_collect_intv(const mem_opt_t *opt, const bwt_t *bwt, int len, const uint8_t *seq, smem_aux_t *a)
 {
 	int i, k, x = 0, old_n;
@@ -257,13 +266,24 @@ void mem_print_chain(const bntseq_t *bns, mem_chain_v *chn)
 	}
 }
 
+/**
+ * 获取某read比对上的所有chain
+ *
+ * @param opt
+ * @param bwt
+ * @param bns
+ * @param len       read的长度
+ * @param seq       read，每个字节表示一个碱基，ACGT分别用0123表示
+ * @param buf
+ * @return
+ */
 mem_chain_v mem_chain(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bns, int len, const uint8_t *seq, void *buf)
 {
 	int i, b, e, l_rep;
 	int64_t l_pac = bns->l_pac;
 	mem_chain_v chain;
 	kbtree_t(chn) *tree;
-	smem_aux_t *aux;
+	smem_aux_t *aux; // kt_for开辟的每个线程都有一个该结构体
 
 	PROFILE_START(seed);
 	kv_init(chain);
@@ -1066,6 +1086,17 @@ void mem_reg2sam(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, 
 	}
 }
 
+/**
+ *
+ * @param opt
+ * @param bwt
+ * @param bns
+ * @param pac
+ * @param l_seq
+ * @param seq
+ * @param buf
+ * @return
+ */
 mem_alnreg_v mem_align1_core(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bns, const uint8_t *pac, int l_seq, char *seq, void *buf)
 {
 	int i;
@@ -1195,15 +1226,15 @@ typedef struct {
 
 static void worker1(void *data, int i, int tid)
 {
-	worker_t *w = (worker_t*)data;
-	if (!(w->opt->flag&MEM_F_PE)) {
+	worker_t *w = (worker_t*)data; // 这里的data是下面mem_process_seqs函数里面创建的worker_t
+	if (!(w->opt->flag&MEM_F_PE)) { // single_end
 		if (bwa_verbose >= 4) printf("=====> Processing read '%s' <=====\n", w->seqs[i].name);
 		w->regs[i] = mem_align1_core(w->opt, w->bwt, w->bns, w->pac, w->seqs[i].l_seq, w->seqs[i].seq, w->aux[tid]);
-	} else {
+	} else { // pair_end
 		if (bwa_verbose >= 4) printf("=====> Processing read '%s'/1 <=====\n", w->seqs[i<<1|0].name);
-		w->regs[i<<1|0] = mem_align1_core(w->opt, w->bwt, w->bns, w->pac, w->seqs[i<<1|0].l_seq, w->seqs[i<<1|0].seq, w->aux[tid]);
+		w->regs[i<<1|0] = mem_align1_core(w->opt, w->bwt, w->bns, w->pac, w->seqs[i<<1|0].l_seq, w->seqs[i<<1|0].seq, w->aux[tid]);// 对一条read执行aln
 		if (bwa_verbose >= 4) printf("=====> Processing read '%s'/2 <=====\n", w->seqs[i<<1|1].name);
-		w->regs[i<<1|1] = mem_align1_core(w->opt, w->bwt, w->bns, w->pac, w->seqs[i<<1|1].l_seq, w->seqs[i<<1|1].seq, w->aux[tid]);
+		w->regs[i<<1|1] = mem_align1_core(w->opt, w->bwt, w->bns, w->pac, w->seqs[i<<1|1].l_seq, w->seqs[i<<1|1].seq, w->aux[tid]);// 对paired-end另一条read执行aln
 	}
 }
 
@@ -1225,6 +1256,18 @@ static void worker2(void *data, int i, int tid)
 	}
 }
 
+/**
+ * 该函数在process函数的step 1中执行，比对step 0中读取的一批read。
+ *
+ * @param opt
+ * @param bwt
+ * @param bns
+ * @param pac
+ * @param n_processed
+ * @param n                 n条read
+ * @param seqs
+ * @param pes0
+ */
 void mem_process_seqs(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bns, const uint8_t *pac, int64_t n_processed, int n, bseq1_t *seqs, const mem_pestat_t *pes0)
 {
 	extern void kt_for(int n_threads, void (*func)(void*,int,int), void *data, int n);

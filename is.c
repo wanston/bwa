@@ -200,6 +200,11 @@ int is_sa(const ubyte_t *T, int *SA, int n)
 }
 
 /**
+ * T是原始碱基序列，一个字节表示一个碱基，
+ * 该函数构造T的bwt变换，结果也存储在T中。
+ * 返回的bwt变换中是不含$字符的，返回值
+ * primary表示$字符应该在bwt上插入的位置。
+ *
  * Constructs the burrows-wheeler transformed string of a given string.
  * @param T[0..n-1] The input string.
  * @param n The length of the given string.

@@ -44,24 +44,24 @@ typedef unsigned char ubyte_t;
 typedef uint64_t bwtint_t;
 
 typedef struct {
-	bwtint_t primary; // S^{-1}(0), or the primary index of BWT
+	bwtint_t primary; // S^{-1}(0), or the primary index of BWT，$在BWT中应该插入的位置
 	bwtint_t L2[5]; // C(), cumulative count，C[0]到C[4]分别表示小于ACGTN的字符数
 	bwtint_t seq_len; // sequence length, fasta中所有序列的长度相加得到
-	bwtint_t bwt_size; // size of bwt, about seq_len/4，？？？ 不是/16吗？
-	uint32_t *bwt; // BWT
+	bwtint_t bwt_size; // size of bwt,表示bwt指针指向的buffer含有多少uint32_t元素, 值是 seq_len/16向上取整
+	uint32_t *bwt; // BWT，不含$字符，其中每个碱基用2bit表示
 	// occurance array, separated to two parts
 	uint32_t cnt_table[256];
 	// suffix array
-	int sa_intv;
-	bwtint_t n_sa;
-	bwtint_t *sa;
+	int sa_intv; // 默认是32
+	bwtint_t n_sa; // 后缀数组sa的大小，值为 (seq_len+1+sa_intv-1) / sa_intv
+	bwtint_t *sa; // 后缀数组
 } bwt_t;
 
 typedef struct {
-	bwtint_t x[3], info;
-} bwtintv_t;
+	bwtint_t x[3], info; // x[0]表示low边界，x[1]表示反向互补序列的low边界，x[2]表示interval的大小，
+} bwtintv_t; // 用于表示bwt的interval
 
-typedef struct { size_t n, m; bwtintv_t *a; } bwtintv_v;
+typedef struct { size_t n, m; bwtintv_t *a; } bwtintv_v; // vector结构，n表示size，m表示capacity，a则是指向数组
 
 /* For general OCC_INTERVAL, the following is correct:
 #define bwt_bwt(b, k) ((b)->bwt[(k)/OCC_INTERVAL * (OCC_INTERVAL/(sizeof(uint32_t)*8/2) + sizeof(bwtint_t)/4*4) + sizeof(bwtint_t)/4*4 + (k)%OCC_INTERVAL/16])

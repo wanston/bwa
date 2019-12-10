@@ -54,7 +54,7 @@ typedef struct {
 } bntamb1_t; // hole的信息
 
 typedef struct {
-	int64_t l_pac; // pac序列的bp数（值为fasta文件中所有序列的bp数相加，再乘以二）
+	int64_t l_pac; // pac序列的bp数（值为fasta文件中所有序列的bp数相加，如果pac序列也包含了反向互补序列，那么还要乘以二）
 	int32_t n_seqs; // fasta文件中序列的条数
 	uint32_t seed;	// 定值，为11
 	bntann1_t *anns; // n_seqs elements，保存序列的注释信息
