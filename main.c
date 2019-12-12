@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <string.h>
+#include <stdatomic.h>
 #include "kstring.h"
 #include "utils.h"
 #include "profile.h"
@@ -16,6 +17,12 @@ PROFILE_INIT(extend);
 PROFILE_INIT(seed_pass1);
 PROFILE_INIT(seed_pass2);
 PROFILE_INIT(seed_pass3);
+
+atomic_ulong pass1_all_mems_num;
+atomic_ulong pass2_all_mems_num;
+atomic_ulong pass1_valid_mems_num;
+atomic_ulong pass2_valid_mems_num;
+
 
 int bwa_fa2pac(int argc, char *argv[]);
 int bwa_pac2bwt(int argc, char *argv[]);
@@ -70,6 +77,11 @@ static int usage()
 
 int main(int argc, char *argv[])
 {
+    atomic_store(&pass1_all_mems_num, 0);
+    atomic_store(&pass2_all_mems_num, 0);
+    atomic_store(&pass1_valid_mems_num, 0);
+    atomic_store(&pass2_valid_mems_num, 0);
+
 	extern char *bwa_pg;
 	int i, ret;
 	double t_real;
@@ -117,5 +129,8 @@ int main(int argc, char *argv[])
 	PROFILE_REPORT(seed_pass1);
 	PROFILE_REPORT(seed_pass2);
 	PROFILE_REPORT(seed_pass3);
-	return ret;
+
+    fprintf(stderr, "pass1 mem %lu %lu\n", atomic_load(&pass1_valid_mems_num), atomic_load(&pass1_all_mems_num));
+    fprintf(stderr, "pass2 mem %lu %lu\n", atomic_load(&pass2_valid_mems_num), atomic_load(&pass2_all_mems_num));
+    return ret;
 }

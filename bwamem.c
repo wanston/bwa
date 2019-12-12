@@ -4,6 +4,9 @@
 #include <assert.h>
 #include <limits.h>
 #include <math.h>
+#include <pthread.h>
+#include <stdatomic.h>
+
 #ifdef HAVE_PTHREAD
 #include <pthread.h>
 #endif
@@ -16,6 +19,7 @@
 #include "ksort.h"
 #include "utils.h"
 #include "profile.h"
+#include "bwt.h"
 
 #ifdef USE_MALLOC_WRAPPERS
 #  include "malloc_wrap.h"
@@ -112,6 +116,11 @@ static void smem_aux_destroy(smem_aux_t *a)
 	free(a);
 }
 
+extern atomic_ulong pass1_all_mems_num;
+extern atomic_ulong pass2_all_mems_num;
+extern atomic_ulong pass1_valid_mems_num;
+extern atomic_ulong pass2_valid_mems_num;
+
 /**
  * seed的过程，从read中找到精确匹配的mem。
  *
@@ -135,9 +144,12 @@ static void mem_collect_intv(const mem_opt_t *opt, const bwt_t *bwt, int len, co
 			for (i = 0; i < a->mem1.n; ++i) {
 				bwtintv_t *p = &a->mem1.a[i];
 				int slen = (uint32_t)p->info - (p->info>>32); // seed length
-				if (slen >= opt->min_seed_len)
+				if (slen >= opt->min_seed_len){
 					kv_push(bwtintv_t, a->mem, *p);
+                    atomic_fetch_add(&pass1_valid_mems_num, 1);
+				}
 			}
+            atomic_fetch_add(&pass1_all_mems_num, a->mem1.n);
 		} else ++x;
 	}
 	PROFILE_END(seed_pass1);
@@ -150,10 +162,14 @@ static void mem_collect_intv(const mem_opt_t *opt, const bwt_t *bwt, int len, co
 		int start = p->info>>32, end = (int32_t)p->info;
 		if (end - start < split_len || p->x[2] > opt->split_width) continue;
 		bwt_smem1(bwt, len, seq, (start + end)>>1, p->x[2]+1, &a->mem1, a->tmpv);
-		for (i = 0; i < a->mem1.n; ++i)
-			if ((uint32_t)a->mem1.a[i].info - (a->mem1.a[i].info>>32) >= opt->min_seed_len)
+
+        for (i = 0; i < a->mem1.n; ++i)
+			if ((uint32_t)a->mem1.a[i].info - (a->mem1.a[i].info>>32) >= opt->min_seed_len){
 				kv_push(bwtintv_t, a->mem, a->mem1.a[i]);
-	}
+                atomic_fetch_add(&pass2_valid_mems_num, 1);
+            }
+        atomic_fetch_add(&pass2_all_mems_num, a->mem1.n);
+    }
 	PROFILE_END(seed_pass2);
 
 	// third pass: LAST-like
