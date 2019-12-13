@@ -240,6 +240,7 @@ int main_mem(int argc, char *argv[])
     }
     char filename[32] = "mem_file_0.txt";
     strncpy(mem_path, s, k+1);
+    mem_path[k+1] = '\0';
     strcat(mem_path, filename);
 
     extern FILE *mem_files[PROFILE_THREAD_NUM];
