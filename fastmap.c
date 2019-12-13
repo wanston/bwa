@@ -12,6 +12,8 @@
 #include "utils.h"
 #include "bntseq.h"
 #include "kseq.h"
+#include "profile.h"
+
 KSEQ_DECLARE(gzFile)
 
 extern unsigned char nst_nt4_table[256];
@@ -228,6 +230,27 @@ int main_mem(int argc, char *argv[])
 						__func__, pes[1].avg, pes[1].std, pes[1].high, pes[1].low);
 		}
 		else return 1;
+	}
+
+    const char *s = argv[optind + 1];
+    char mem_path[128];
+    size_t k=0;
+    for(k = strlen(s)-1; k>=0; k--){
+        if(s[k] == '/') break;
+    }
+    char filename[32] = "mem_file_0.txt";
+    strncpy(mem_path, s, k+1);
+    strcat(mem_path, "mem_file");
+    strcat(mem_path, filename);
+
+    extern FILE *mem_files[PROFILE_THREAD_NUM];
+	int ii;
+	for(ii = 0; ii < opt->n_threads; ii++){
+
+        mem_path[strlen(mem_path) - 5] += 1;
+
+        fprintf(stderr, "%s\n", mem_path);
+	    mem_files[ii] = fopen(mem_path, "w");
 	}
 
 	if (rg_line) {

@@ -56,7 +56,7 @@ static void *ktf_worker(void *data)
 
 /**
  * 开n_threads条线程，执行n次func函数。该函数在mem_process_seqs函数中被调用，
- * 用于开多线程处理n条read，func函数是worker1和worker2，这两个函数每次处理1条read。
+ * 用于开多线程处理n条read，func函数是worker1或者worker2，这两个函数每次处理1条read。
  *
  * @param n_threads
  * @param func

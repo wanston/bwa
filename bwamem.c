@@ -132,6 +132,8 @@ extern atomic_ulong pass2_valid_mems_num;
  */
 static void mem_collect_intv(const mem_opt_t *opt, const bwt_t *bwt, int len, const uint8_t *seq, smem_aux_t *a)
 {
+    extern FILE* mem_files[PROFILE_THREAD_NUM];
+
 	int i, k, x = 0, old_n;
 	int start_width = 1;
 	int split_len = (int)(opt->min_seed_len * opt->split_factor + .499);
@@ -142,12 +144,17 @@ static void mem_collect_intv(const mem_opt_t *opt, const bwt_t *bwt, int len, co
 		if (seq[x] < 4) {
 			x = bwt_smem1(bwt, len, seq, x, start_width, &a->mem1, a->tmpv);
 			for (i = 0; i < a->mem1.n; ++i) {
+			    char buf[128];
+			    int good_mem = 0;
 				bwtintv_t *p = &a->mem1.a[i];
 				int slen = (uint32_t)p->info - (p->info>>32); // seed length
 				if (slen >= opt->min_seed_len){
 					kv_push(bwtintv_t, a->mem, *p);
                     atomic_fetch_add(&pass1_valid_mems_num, 1);
+                    good_mem = 1;
 				}
+				sprintf(buf, "%d\t%d\t%d\t%ld\t%d\n", 1, (int32_t)(p->info >> 32), (int32_t)p->info, p->x[2], good_mem);
+				fputs(buf, mem_files[pro_tid]);
 			}
             atomic_fetch_add(&pass1_all_mems_num, a->mem1.n);
 		} else ++x;
@@ -163,11 +170,17 @@ static void mem_collect_intv(const mem_opt_t *opt, const bwt_t *bwt, int len, co
 		if (end - start < split_len || p->x[2] > opt->split_width) continue;
 		bwt_smem1(bwt, len, seq, (start + end)>>1, p->x[2]+1, &a->mem1, a->tmpv);
 
-        for (i = 0; i < a->mem1.n; ++i)
+        for (i = 0; i < a->mem1.n; ++i){
+            char buf[128];
+            int good_mem = 0;
 			if ((uint32_t)a->mem1.a[i].info - (a->mem1.a[i].info>>32) >= opt->min_seed_len){
 				kv_push(bwtintv_t, a->mem, a->mem1.a[i]);
                 atomic_fetch_add(&pass2_valid_mems_num, 1);
+                good_mem = 1;
             }
+            sprintf(buf, "%d\t%d\t%d\t%ld\t%d\n", 2, (int32_t)(a->mem1.a[i].info >> 32), (int32_t)a->mem1.a[i].info, a->mem1.a[i].x[2], good_mem);
+            fputs(buf, mem_files[pro_tid]);
+        }
         atomic_fetch_add(&pass2_all_mems_num, a->mem1.n);
     }
 	PROFILE_END(seed_pass2);
@@ -216,6 +229,7 @@ typedef struct {
 typedef struct { size_t n, m; mem_chain_t *a;  } mem_chain_v;
 
 #include "kbtree.h"
+#include "bwa.h"
 
 #define chain_cmp(a, b) (((b).pos < (a).pos) - ((a).pos < (b).pos))
 KBTREE_INIT(chn, mem_chain_t, chain_cmp)
@@ -1243,6 +1257,12 @@ typedef struct {
 static void worker1(void *data, int i, int tid)
 {
 	worker_t *w = (worker_t*)data; // 这里的data是下面mem_process_seqs函数里面创建的worker_t
+
+    extern FILE* mem_files[PROFILE_THREAD_NUM];
+    char buf[128];
+    sprintf(buf, "%s\t%d\n", w->seqs[i].name, w->seqs[i].l_seq);
+    fputs(buf, mem_files[pro_tid]);
+
 	if (!(w->opt->flag&MEM_F_PE)) { // single_end
 		if (bwa_verbose >= 4) printf("=====> Processing read '%s' <=====\n", w->seqs[i].name);
 		w->regs[i] = mem_align1_core(w->opt, w->bwt, w->bns, w->pac, w->seqs[i].l_seq, w->seqs[i].seq, w->aux[tid]);
@@ -1252,6 +1272,8 @@ static void worker1(void *data, int i, int tid)
 		if (bwa_verbose >= 4) printf("=====> Processing read '%s'/2 <=====\n", w->seqs[i<<1|1].name);
 		w->regs[i<<1|1] = mem_align1_core(w->opt, w->bwt, w->bns, w->pac, w->seqs[i<<1|1].l_seq, w->seqs[i<<1|1].seq, w->aux[tid]);// 对paired-end另一条read执行aln
 	}
+
+	fputc('\n', mem_files[pro_tid]);
 }
 
 static void worker2(void *data, int i, int tid)

@@ -23,6 +23,7 @@ atomic_ulong pass2_all_mems_num;
 atomic_ulong pass1_valid_mems_num;
 atomic_ulong pass2_valid_mems_num;
 
+FILE *mem_files[PROFILE_THREAD_NUM];
 
 int bwa_fa2pac(int argc, char *argv[]);
 int bwa_pac2bwt(int argc, char *argv[]);
@@ -132,5 +133,11 @@ int main(int argc, char *argv[])
 
     fprintf(stderr, "pass1 mem %lu %lu\n", atomic_load(&pass1_valid_mems_num), atomic_load(&pass1_all_mems_num));
     fprintf(stderr, "pass2 mem %lu %lu\n", atomic_load(&pass2_valid_mems_num), atomic_load(&pass2_all_mems_num));
+
+    for(i=0; i<PROFILE_THREAD_NUM; i++){
+        if(mem_files[i]){
+            fclose(mem_files[i]);
+        }
+    }
     return ret;
 }
