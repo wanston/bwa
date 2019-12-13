@@ -240,7 +240,6 @@ int main_mem(int argc, char *argv[])
     }
     char filename[32] = "mem_file_0.txt";
     strncpy(mem_path, s, k+1);
-    strcat(mem_path, "mem_file");
     strcat(mem_path, filename);
 
     extern FILE *mem_files[PROFILE_THREAD_NUM];
@@ -249,7 +248,7 @@ int main_mem(int argc, char *argv[])
 
         mem_path[strlen(mem_path) - 5] += 1;
 
-        fprintf(stderr, "%s\n", mem_path);
+        fprintf(stderr, "mem profles %s\n", mem_path);
 	    mem_files[ii] = fopen(mem_path, "w");
 	}
 
