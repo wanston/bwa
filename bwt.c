@@ -316,7 +316,7 @@ static void bwt_reverse_intvs(bwtintv_v *p)
 int bwt_smem1a(const bwt_t *bwt, int len, const uint8_t *q, int x, int min_intv, uint64_t max_intv, bwtintv_v *mem, bwtintv_v *tmpvec[2])
 {
 	int i, j, c, ret;
-	bwtintv_t ik, ok[4];
+	bwtintv_t ik, ok[4]; // 我要存储的是kv_push的结果
 	bwtintv_v a[2], *prev, *curr, *swap;
 
 	mem->n = 0;

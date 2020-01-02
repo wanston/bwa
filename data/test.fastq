@@ -1,5 +1,9 @@
+@S0
+TGTTTAAAGAGTCAGTTCTTCGTAAATTGATCTCCAGATCCAATGCAATTCTAATAAAAATTCCAAGCGGCATTAC
++
+&..)/&(#.-+-.)($,++#,'+"''($)*",.'&..)/&(#.-+-.)($,++#,'+"''($)*",.'&..)/&(#
 @S1
-gatccacctgcctcagcctcccagagtgctCCCattataggtgtgagccactgcacccggccgaaaactttttctt
+gatccacctgTTtcagcctcccagagtgctgggattataggtgtgagccactgcacccggccgaaaactttttctt
 +
 &..)/&(#.-+-.)($,++#,'+"''($)*",.'&..)/&(#.-+-.)($,++#,'+"''($)*",.'&..)/&(#
 @S2
@@ -15,6 +19,10 @@ ACCATTTATATGGTAATGTCAATGATCAAGAATAATAAAATAGCAATATTATAAAAGAATAATGGTGAATGAATTC
 +
 .''++#(,#-)--'.!)&,-."&'*(+(,(,+,(%,-.-.#)&,-."&'*(+!)&,-."&'*(+(,(,+,(%,-.-
 @S5
-TGTTTAAAGAGTCAGTTCTTCGTAAATTGATCTCCAGATCCAATGCAATTCTAATAAAAATTCCAAGCGGCATTAC
+gatccacctgcctcagcctcccagagtgctCCCattataggtgtgagccactgcacccggccgaaaactttttctt
++
+.''++#(,#-)--'.!)&,-."&'*(+(,(,+,(%,-.-.#)&,-."&'*(+!)&,-."&'*(+(,(,+,(%,-.-
+@S6
+aacgtatgctctagctagcgctagctagtcgatcgtacgtacgtacgtacagctacgtactacgtagcgtacgtac
 +
 .''++#(,#-)--'.!)&,-."&'*(+(,(,+,(%,-.-.#)&,-."&'*(+!)&,-."&'*(+(,(,+,(%,-.-

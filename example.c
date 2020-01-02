@@ -13,6 +13,7 @@ int main(int argc, char *argv[])
 	gzFile fp;
 	kseq_t *ks;
 	mem_opt_t *opt;
+	
 
 	if (argc < 3) {
 		fprintf(stderr, "Usage: bwamem-lite <idx.base> <reads.fq>\n");
