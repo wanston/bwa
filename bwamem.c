@@ -368,7 +368,7 @@ mem_chain_v mem_chain(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bn
 			if (rid < 0) continue; // bridging multiple reference sequences or the forward-reverse boundary; TODO: split the seed; don't discard it!!!
 			if (kb_size(tree)) {
 				kb_intervalp(chn, tree, &tmp, &lower, &upper); // find the closest chain
-                int merge_r;
+                int merge_r = 0;
 				if (!lower || !(merge_r = test_and_merge(opt, l_pac, lower, &s, rid))) // test_and_merge是测试种子s能否merge到lower链中，能的话就merge然后返回-1，不能返回0。
 				    to_add = 1; // 如果种子s的pos小于当前所有链的pos 或者 种子可以merge到其pos右边的chain中
                 if(merge_r == 2){
