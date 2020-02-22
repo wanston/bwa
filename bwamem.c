@@ -116,10 +116,15 @@ static void smem_aux_destroy(smem_aux_t *a)
 	free(a);
 }
 
-//extern atomic_ulong pass1_all_mems_num;
-//extern atomic_ulong pass2_all_mems_num;
-//extern atomic_ulong pass1_valid_mems_num;
-//extern atomic_ulong pass2_valid_mems_num;
+extern atomic_ulong pass1_all_mems_num;
+extern atomic_ulong pass2_all_mems_num;
+extern atomic_ulong pass3_all_mems_num;
+extern atomic_ulong pass1_valid_mems_num;
+extern atomic_ulong pass2_valid_mems_num;
+extern atomic_ulong pass2_reseeding_ok_mems_num;
+extern atomic_ulong pass2_noreseeding_mems_num;
+extern atomic_ulong pass3_filtered_mems_num;
+extern atomic_ulong pass3_half_filtered_mems_num;
 
 /**
  * seed的过程，从read中找到精确匹配的mem。
@@ -150,13 +155,13 @@ static void mem_collect_intv(const mem_opt_t *opt, const bwt_t *bwt, int len, co
 				int slen = (uint32_t)p->info - (p->info>>32); // seed length
 				if (slen >= opt->min_seed_len){
 					kv_push(bwtintv_t, a->mem, *p);
-//                    atomic_fetch_add(&pass1_valid_mems_num, 1);
+                    atomic_fetch_add(&pass1_valid_mems_num, 1);
 //                    good_mem = 1;
 				}
 //				sprintf(buf, "%d\t%d\t%d\t%ld\t%d\n", 1, (int32_t)(p->info >> 32), (int32_t)p->info, p->x[2], good_mem);
 //				fputs(buf, mem_files[pro_tid]);
 			}
-//            atomic_fetch_add(&pass1_all_mems_num, a->mem1.n);
+            atomic_fetch_add(&pass1_all_mems_num, a->mem1.n);
 		} else ++x;
 	}
 	PROFILE_END(seed_pass1);
@@ -164,24 +169,30 @@ static void mem_collect_intv(const mem_opt_t *opt, const bwt_t *bwt, int len, co
 	// second pass: find MEMs inside a long SMEM
 	PROFILE_START(seed_pass2);
 	old_n = a->mem.n;
-	for (k = 0; k < old_n; ++k) {
+	int reseeding_ok;
+    for (k = 0; k < old_n; ++k) {
 		bwtintv_t *p = &a->mem.a[k];
 		int start = p->info>>32, end = (int32_t)p->info;
-		if (end - start < split_len || p->x[2] > opt->split_width) continue;
+		if (end - start < split_len || p->x[2] > opt->split_width){
+		    atomic_fetch_add(&pass2_noreseeding_mems_num, 1);
+		    continue;
+		}
 		bwt_smem1(bwt, len, seq, (start + end)>>1, p->x[2]+1, &a->mem1, a->tmpv);
-
+        reseeding_ok = 0;
         for (i = 0; i < a->mem1.n; ++i){
 //            char buf[128];
 //            int good_mem = 0;
 			if ((uint32_t)a->mem1.a[i].info - (a->mem1.a[i].info>>32) >= opt->min_seed_len){
 				kv_push(bwtintv_t, a->mem, a->mem1.a[i]);
-//                atomic_fetch_add(&pass2_valid_mems_num, 1);
+                atomic_fetch_add(&pass2_valid_mems_num, 1);
 //                good_mem = 1;
+                reseeding_ok = 1;
             }
 //            sprintf(buf, "%d\t%d\t%d\t%ld\t%d\n", 2, (int32_t)(a->mem1.a[i].info >> 32), (int32_t)a->mem1.a[i].info, a->mem1.a[i].x[2], good_mem);
 //            fputs(buf, mem_files[pro_tid]);
         }
-//        atomic_fetch_add(&pass2_all_mems_num, a->mem1.n);
+        atomic_fetch_add(&pass2_all_mems_num, a->mem1.n);
+        atomic_fetch_add(&pass2_reseeding_ok_mems_num, reseeding_ok);
     }
 	PROFILE_END(seed_pass2);
 
@@ -194,7 +205,10 @@ static void mem_collect_intv(const mem_opt_t *opt, const bwt_t *bwt, int len, co
 				if (1) {
 					bwtintv_t m;
 					x = bwt_seed_strategy1(bwt, len, seq, x, opt->min_seed_len, opt->max_mem_intv, &m);
-					if (m.x[2] > 0) kv_push(bwtintv_t, a->mem, m);
+					if (m.x[2] > 0){
+					    kv_push(bwtintv_t, a->mem, m);
+                        atomic_fetch_add(&pass3_all_mems_num, 1);
+					}
 				} else { // for now, we never come to this block which is slower
 					x = bwt_smem1a(bwt, len, seq, x, start_width, opt->max_mem_intv, &a->mem1, a->tmpv);
 					for (i = 0; i < a->mem1.n; ++i)
@@ -220,9 +234,9 @@ typedef struct {
 
 typedef struct {
 	int n, m, first, rid;
-	uint32_t w:29, kept:2, is_alt:1;
+	uint32_t w:29, kept:2, is_alt:1; // w 表示chain的权重
 	float frac_rep;
-	int64_t pos;
+	int64_t pos; // pos表示chain在reference上的位置，即最左端匹配的位置。
 	mem_seed_t *seeds;
 } mem_chain_t;
 
@@ -243,7 +257,7 @@ static int test_and_merge(const mem_opt_t *opt, int64_t l_pac, mem_chain_t *c, c
 	rend = last->rbeg + last->len;
 	if (seed_rid != c->rid) return 0; // different chr; request a new chain
 	if (p->qbeg >= c->seeds[0].qbeg && p->qbeg + p->len <= qend && p->rbeg >= c->seeds[0].rbeg && p->rbeg + p->len <= rend)
-		return 1; // contained seed; do nothing
+		return 2; // contained seed; do nothing
 	if ((last->rbeg < l_pac || c->seeds[0].rbeg < l_pac) && p->rbeg >= l_pac) return 0; // don't chain if on different strand
 	x = p->qbeg - last->qbeg; // always non-negtive
 	y = p->rbeg - last->rbeg;
@@ -312,7 +326,7 @@ mem_chain_v mem_chain(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bn
 	int i, b, e, l_rep;
 	int64_t l_pac = bns->l_pac;
 	mem_chain_v chain;
-	kbtree_t(chn) *tree;
+	kbtree_t(chn) *tree; // 在KBTREE_INIT的时候，已经指定了根据mem_chain_t的pos来进行排序。KBTREE是一个平衡二叉搜索树。
 	smem_aux_t *aux; // kt_for开辟的每个线程都有一个该结构体
 
 	PROFILE_START(seed);
@@ -322,7 +336,7 @@ mem_chain_v mem_chain(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bn
 
 	aux = buf? (smem_aux_t*)buf : smem_aux_init();
 	mem_collect_intv(opt, bwt, len, seq, aux);
-	for (i = 0, b = e = l_rep = 0; i < aux->mem.n; ++i) { // compute frac_rep
+	for (i = 0, b = e = l_rep = 0; i < aux->mem.n; ++i) { // compute frac_rep, 这个循环仅对interval大于500的进行计算。
 		bwtintv_t *p = &aux->mem.a[i];
 		int sb = (p->info>>32), se = (uint32_t)p->info;
 		if (p->x[2] <= opt->max_occ) continue;
@@ -339,6 +353,10 @@ mem_chain_v mem_chain(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bn
 		int64_t k;
 		// if (slen < opt->min_seed_len) continue; // ignore if too short or too repetitive
 		step = p->x[2] > opt->max_occ? p->x[2] / opt->max_occ : 1;
+
+
+		int filtered_seed_num = 0;
+
 		for (k = count = 0; k < p->x[2] && count < opt->max_occ; k += step, ++count) {
 			mem_chain_t tmp, *lower, *upper;
 			mem_seed_t s;
@@ -350,8 +368,14 @@ mem_chain_v mem_chain(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bn
 			if (rid < 0) continue; // bridging multiple reference sequences or the forward-reverse boundary; TODO: split the seed; don't discard it!!!
 			if (kb_size(tree)) {
 				kb_intervalp(chn, tree, &tmp, &lower, &upper); // find the closest chain
-				if (!lower || !test_and_merge(opt, l_pac, lower, &s, rid)) to_add = 1;
-			} else to_add = 1;
+                int merge_r;
+				if (!lower || !(merge_r = test_and_merge(opt, l_pac, lower, &s, rid))) // test_and_merge是测试种子s能否merge到lower链中，能的话就merge然后返回-1，不能返回0。
+				    to_add = 1; // 如果种子s的pos小于当前所有链的pos 或者 种子可以merge到其pos右边的chain中
+                if(merge_r == 2){
+                    filtered_seed_num++;
+                }
+			} else
+			    to_add = 1;
 			if (to_add) { // add the seed as a new chain
 				tmp.n = 1; tmp.m = 4;
 				tmp.seeds = calloc(tmp.m, sizeof(mem_seed_t));
@@ -361,7 +385,15 @@ mem_chain_v mem_chain(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bn
 				kb_putp(chn, tree, &tmp);
 			}
 		}
-	}
+
+        if(slen == 20 && filtered_seed_num == p->x[2]){
+            atomic_fetch_add(&pass3_filtered_mems_num, 1);
+        }
+
+        if(slen == 20 && filtered_seed_num >= p->x[2]*0.5){
+            atomic_fetch_add(&pass3_half_filtered_mems_num, 1);
+        }
+    }
 	if (buf == 0) smem_aux_destroy(aux);
 
 	kv_resize(mem_chain_t, chain, kb_size(tree));
@@ -398,12 +430,12 @@ int mem_chain_flt(const mem_opt_t *opt, int n_chn, mem_chain_t *a)
 	for (i = k = 0; i < n_chn; ++i) {
 		mem_chain_t *c = &a[i];
 		c->first = -1; c->kept = 0;
-		c->w = mem_chain_weight(c);
+		c->w = mem_chain_weight(c); // 链的weight是该链有多少精确匹配的长度，具体的计算方法是query上的精确匹配的长度 和 reference上精确匹配的长度取最小值。
 		if (c->w < opt->min_chain_weight) free(c->seeds);
 		else a[k++] = *c;
 	}
 	n_chn = k;
-	ks_introsort(mem_flt, n_chn, a);
+	ks_introsort(mem_flt, n_chn, a); // 根据weight排序，weight最高的在前面。
 	// pairwise chain comparisons
 	a[0].kept = 3;
 	kv_push(int, chains, 0);
@@ -420,14 +452,14 @@ int mem_chain_flt(const mem_opt_t *opt, int n_chn, mem_chain_t *a)
 				if (e_min - b_max >= min_l * opt->mask_level && min_l < opt->max_chain_gap) { // significant overlap
 					large_ovlp = 1;
 					if (a[j].first < 0) a[j].first = i; // keep the first shadowed hit s.t. mapq can be more accurate
-					if (a[i].w < a[j].w * opt->drop_ratio && a[j].w - a[i].w >= opt->min_seed_len<<1)
-						break;
+					if (a[i].w < a[j].w * opt->drop_ratio && a[j].w - a[i].w >= opt->min_seed_len<<1) // 如果a[i]与a[j]的权重相比过小的话。
+						break; // 那么后续该chain会被丢弃掉
 				}
 			}
 		}
-		if (k == chains.n) {
+		if (k == chains.n) { // 如果a[i]和chains中的链相比，无overlap 或者 有overlap且权重符合条件的话，就把a[i]加到chains中。
 			kv_push(int, chains, i);
-			a[i].kept = large_ovlp? 2 : 3;
+			a[i].kept = large_ovlp? 2 : 3; // kept 表示的是是否后面保留该chain，0的话就不保留。
 		}
 	}
 	for (i = 0; i < chains.n; ++i) {
@@ -727,7 +759,7 @@ void mem_chain2aln(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac
 	srt = malloc(c->n * 8);
 	for (i = 0; i < c->n; ++i)
 		srt[i] = (uint64_t)c->seeds[i].score<<32 | i;
-	ks_introsort_64(c->n, srt);
+	ks_introsort_64(c->n, srt); // 低64位，升序排序。
 
 	for (k = c->n - 1; k >= 0; --k) {
 		mem_alnreg_t *a;
@@ -754,13 +786,13 @@ void mem_chain2aln(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac
 			if (bwa_verbose >= 4)
 				printf("** Seed(%d) [%ld;%ld,%ld] is almost contained in an existing alignment [%d,%d) <=> [%ld,%ld)\n",
 					   k, (long)s->len, (long)s->qbeg, (long)s->rbeg, av->a[i].qb, av->a[i].qe, (long)av->a[i].rb, (long)av->a[i].re);
-			for (i = k + 1; i < c->n; ++i) { // check overlapping seeds in the same chain
+			for (i = k + 1; i < c->n; ++i) { // check overlapping seeds in the same chain，和未扩展过的种子进行比较，如果这些种子和本种子有overlap且不满足某条件，那么就进行扩展。
 				const mem_seed_t *t;
 				if (srt[i] == 0) continue;
 				t = &c->seeds[(uint32_t)srt[i]];
 				if (t->len < s->len * .95) continue; // only check overlapping if t is long enough; TODO: more efficient by early stopping
 				if (s->qbeg <= t->qbeg && s->qbeg + s->len - t->qbeg >= s->len>>2 && t->qbeg - s->qbeg != t->rbeg - s->rbeg) break;
-				if (t->qbeg <= s->qbeg && t->qbeg + t->len - s->qbeg >= s->len>>2 && s->qbeg - t->qbeg != s->rbeg - t->rbeg) break;
+				if (t->qbeg <= s->qbeg && t->qbeg + t->len - s->qbeg >= s->len>>2 && s->qbeg - t->qbeg != s->rbeg - t->rbeg) break; // break表示要进行扩展
 			}
 			if (i == c->n) { // no overlapping seeds; then skip extension
 				srt[k] = 0; // mark that seed extension has not been performed
@@ -1139,17 +1171,17 @@ mem_alnreg_v mem_align1_core(const mem_opt_t *opt, const bwt_t *bwt, const bntse
 	chn = mem_chain(opt, bwt, bns, l_seq, (uint8_t*)seq, buf);
 
 	PROFILE_START(chain);
-	chn.n = mem_chain_flt(opt, chn.n, chn.a);
-	mem_flt_chained_seeds(opt, bns, pac, l_seq, (uint8_t*)seq, chn.n, chn.a);
+	chn.n = mem_chain_flt(opt, chn.n, chn.a); // 根据这些条链的权重信息和位置信息，过滤掉一部分链
+	mem_flt_chained_seeds(opt, bns, pac, l_seq, (uint8_t*)seq, chn.n, chn.a); // 过滤掉每条链中的某些种子，函数里面有判断，这一步对于长序列（大约大于900bp）才会执行，短序列则是不做任何工作。
 	if (bwa_verbose >= 4) mem_print_chain(bns, &chn);
 	PROFILE_END(chain);
 
 	PROFILE_START(extend);
 	kv_init(regs);
-	for (i = 0; i < chn.n; ++i) {
+	for (i = 0; i < chn.n; ++i) { // 对每条链进行扩展
 		mem_chain_t *p = &chn.a[i];
 		if (bwa_verbose >= 4) err_printf("* ---> Processing chain(%d) <---\n", i);
-		mem_chain2aln(opt, bns, pac, l_seq, (uint8_t*)seq, p, &regs);
+		mem_chain2aln(opt, bns, pac, l_seq, (uint8_t*)seq, p, &regs); // 该函数中，每个seed向两侧扩展到头，当然有逻辑来省去一部分seed的计算
 		free(chn.a[i].seeds);
 	}
 	free(chn.a);
