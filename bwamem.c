@@ -125,7 +125,8 @@ extern atomic_ulong pass2_reseeding_ok_mems_num;
 extern atomic_ulong pass2_noreseeding_mems_num;
 extern atomic_ulong pass3_filtered_mems_num;
 extern atomic_ulong pass3_half_filtered_mems_num;
-
+extern atomic_ulong total_seed_num;
+extern atomic_ulong filted_seed_num;
 /**
  * seed的过程，从read中找到精确匹配的mem。
  *
@@ -198,26 +199,31 @@ static void mem_collect_intv(const mem_opt_t *opt, const bwt_t *bwt, int len, co
 
 	// third pass: LAST-like
 	PROFILE_START(seed_pass3);
-//	if (opt->max_mem_intv > 0) {
-//		x = 0;
-//		while (x < len) {
-//			if (seq[x] < 4) {
-//				if (1) {
-//					bwtintv_t m;
-//					x = bwt_seed_strategy1(bwt, len, seq, x, opt->min_seed_len, opt->max_mem_intv, &m);
-//					if (m.x[2] > 0){
-//					    kv_push(bwtintv_t, a->mem, m);
-//                        atomic_fetch_add(&pass3_all_mems_num, 1);
-//					}
-//				} else { // for now, we never come to this block which is slower
-//					x = bwt_smem1a(bwt, len, seq, x, start_width, opt->max_mem_intv, &a->mem1, a->tmpv);
-//					for (i = 0; i < a->mem1.n; ++i)
-//						kv_push(bwtintv_t, a->mem, a->mem1.a[i]);
-//				}
-//			} else ++x;
-//		}
-//	}
+	if (opt->max_mem_intv > 0) {
+		x = 0;
+		while (x < len) {
+			if (seq[x] < 4) {
+				if (1) {
+					bwtintv_t m;
+					x = bwt_seed_strategy1(bwt, len, seq, x, opt->min_seed_len, opt->max_mem_intv, &m);
+					if (m.x[2] > 0){
+					    kv_push(bwtintv_t, a->mem, m);
+                        atomic_fetch_add(&pass3_all_mems_num, 1);
+					}
+				} else { // for now, we never come to this block which is slower
+					x = bwt_smem1a(bwt, len, seq, x, start_width, opt->max_mem_intv, &a->mem1, a->tmpv);
+					for (i = 0; i < a->mem1.n; ++i)
+						kv_push(bwtintv_t, a->mem, a->mem1.a[i]);
+				}
+			} else ++x;
+		}
+	}
 	PROFILE_END(seed_pass3);
+
+    for (i = 0; i < a->mem.n; ++i){
+        atomic_fetch_add(&total_seed_num, a->mem.a[i].x[2]);
+    }
+
 	// sort
 	ks_introsort(mem_intv, a->mem.n, a->mem.a);
 }
@@ -355,7 +361,7 @@ mem_chain_v mem_chain(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bn
 		step = p->x[2] > opt->max_occ? p->x[2] / opt->max_occ : 1;
 
 
-		int filtered_seed_num = 0;
+		int filtered_seed_num_local = 0;
 
 		for (k = count = 0; k < p->x[2] && count < opt->max_occ; k += step, ++count) {
 			mem_chain_t tmp, *lower, *upper;
@@ -372,7 +378,8 @@ mem_chain_v mem_chain(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bn
 				if (!lower || !(merge_r = test_and_merge(opt, l_pac, lower, &s, rid))) // test_and_merge是测试种子s能否merge到lower链中，能的话就merge然后返回-1，不能返回0。
 				    to_add = 1; // 如果种子s的pos小于当前所有链的pos 或者 种子可以merge到其pos右边的chain中
                 if(merge_r == 2){
-                    filtered_seed_num++;
+                    filtered_seed_num_local++;
+                    atomic_fetch_add(&filted_seed_num, 1);
                 }
 			} else
 			    to_add = 1;
@@ -386,11 +393,11 @@ mem_chain_v mem_chain(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bn
 			}
 		}
 
-        if(slen == 20 && filtered_seed_num == p->x[2]){
+        if(slen == 20 && filtered_seed_num_local == p->x[2]){
             atomic_fetch_add(&pass3_filtered_mems_num, 1);
         }
 
-        if(slen == 20 && filtered_seed_num >= p->x[2]*0.5){
+        if(slen == 20 && filtered_seed_num_local >= p->x[2]*0.5){
             atomic_fetch_add(&pass3_half_filtered_mems_num, 1);
         }
     }

@@ -28,6 +28,8 @@ atomic_ulong pass2_reseeding_ok_mems_num;
 atomic_ulong pass3_filtered_mems_num;
 atomic_ulong pass3_half_filtered_mems_num;
 
+atomic_ulong total_seed_num;
+atomic_ulong filted_seed_num;
 //FILE *mem_files[PROFILE_THREAD_NUM];
 
 int bwa_fa2pac(int argc, char *argv[]);
@@ -92,6 +94,9 @@ int main(int argc, char *argv[])
     atomic_store(&pass3_all_mems_num, 0);
     atomic_store(&pass3_filtered_mems_num, 0);
     atomic_store(&pass3_half_filtered_mems_num, 0);
+    atomic_store(&total_seed_num, 0);
+    atomic_store(&filted_seed_num, 0);
+
 
 	extern char *bwa_pg;
 	int i, ret;
@@ -144,6 +149,8 @@ int main(int argc, char *argv[])
     fprintf(stderr, "pass1 mem valid %lu reseeding %lu all %lu\n", atomic_load(&pass1_valid_mems_num), atomic_load(&pass1_valid_mems_num)-atomic_load(&pass2_noreseeding_mems_num), atomic_load(&pass1_all_mems_num));
     fprintf(stderr, "pass2 mem reseeding_ok %lu valid %lu all %lu\n", atomic_load(&pass2_reseeding_ok_mems_num), atomic_load(&pass2_valid_mems_num), atomic_load(&pass2_all_mems_num));
     fprintf(stderr, "pass3 mem filtered %lu half filtered %lu all %lu\n", atomic_load(&pass3_filtered_mems_num), atomic_load(&pass3_half_filtered_mems_num), atomic_load(&pass3_all_mems_num));
+
+    fprintf(stderr, "total seed num %lu %lu\n", atomic_load(&total_seed_num), atomic_load(&filted_seed_num));
 
 //    for(i=0; i<PROFILE_THREAD_NUM; i++){
 //        if(mem_files[i]){
