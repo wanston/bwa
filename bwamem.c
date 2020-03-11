@@ -127,6 +127,11 @@ extern atomic_ulong pass3_filtered_mems_num;
 extern atomic_ulong pass3_half_filtered_mems_num;
 extern atomic_ulong total_seed_num;
 extern atomic_ulong filted_seed_num;
+extern atomic_ulong pass1_seed_num;
+extern atomic_ulong pass2_seed_num;
+extern atomic_ulong pass3_seed_num;
+
+
 /**
  * seed的过程，从read中找到精确匹配的mem。
  *
@@ -157,6 +162,7 @@ static void mem_collect_intv(const mem_opt_t *opt, const bwt_t *bwt, int len, co
 				if (slen >= opt->min_seed_len){
 					kv_push(bwtintv_t, a->mem, *p);
                     atomic_fetch_add(&pass1_valid_mems_num, 1);
+                    atomic_fetch_add(&pass1_seed_num, p->x[2]);
 //                    good_mem = 1;
 				}
 //				sprintf(buf, "%d\t%d\t%d\t%ld\t%d\n", 1, (int32_t)(p->info >> 32), (int32_t)p->info, p->x[2], good_mem);
@@ -186,6 +192,7 @@ static void mem_collect_intv(const mem_opt_t *opt, const bwt_t *bwt, int len, co
 			if ((uint32_t)a->mem1.a[i].info - (a->mem1.a[i].info>>32) >= opt->min_seed_len){
 				kv_push(bwtintv_t, a->mem, a->mem1.a[i]);
                 atomic_fetch_add(&pass2_valid_mems_num, 1);
+                atomic_fetch_add(&pass2_seed_num, a->mem1.a[i].x[2]);
 //                good_mem = 1;
                 reseeding_ok = 1;
             }
@@ -209,7 +216,8 @@ static void mem_collect_intv(const mem_opt_t *opt, const bwt_t *bwt, int len, co
 					if (m.x[2] > 0){
 					    kv_push(bwtintv_t, a->mem, m);
                         atomic_fetch_add(&pass3_all_mems_num, 1);
-					}
+                        atomic_fetch_add(&pass3_seed_num, m.x[2]);
+                    }
 				} else { // for now, we never come to this block which is slower
 					x = bwt_smem1a(bwt, len, seq, x, start_width, opt->max_mem_intv, &a->mem1, a->tmpv);
 					for (i = 0; i < a->mem1.n; ++i)
@@ -393,11 +401,11 @@ mem_chain_v mem_chain(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bn
 			}
 		}
 
-        if(slen == 20 && filtered_seed_num_local == p->x[2]){
+        if(p->x[2] == 0 && filtered_seed_num_local == p->x[2]){
             atomic_fetch_add(&pass3_filtered_mems_num, 1);
         }
 
-        if(slen == 20 && filtered_seed_num_local >= p->x[2]*0.5){
+        if(p->x[2] == 0 && filtered_seed_num_local >= p->x[2]*0.5){
             atomic_fetch_add(&pass3_half_filtered_mems_num, 1);
         }
     }
