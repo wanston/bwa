@@ -373,8 +373,7 @@ int bwt_smem1a(const bwt_t *bwt, int len, const uint8_t *q, int x, int min_intv,
 	bwt_reverse_intvs(mem); // s.t. sorted by the start coordinate
 
 	if (tmpvec == 0 || tmpvec[0] == 0) free(a[0].a);
-	if (tmpvec == 0 || tmpvec[1] == 0) free(a[1].a);
-	return ret;
+	if (tmpvec == 0 || tmpvec[1] == 0) free(a[1].a);return ret;
 }
 
 int bwt_smem1(const bwt_t *bwt, int len, const uint8_t *q, int x, int min_intv, bwtintv_v *mem, bwtintv_v *tmpvec[2])
