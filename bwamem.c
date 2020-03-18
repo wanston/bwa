@@ -134,6 +134,7 @@ extern atomic_ulong pass3_seed_num;
 
 extern atomic_ulong smem_call_count;
 extern atomic_ulong smem_valid_count;
+extern atomic_ulong smem_valid_count;
 
 /**
  * seed的过程，从read中找到精确匹配的mem。
@@ -183,33 +184,33 @@ static void mem_collect_intv(const mem_opt_t *opt, const bwt_t *bwt, int len, co
 
 	// second pass: find MEMs inside a long SMEM
 	PROFILE_START(seed_pass2);
-	old_n = a->mem.n;
-	int reseeding_ok;
-    for (k = 0; k < old_n; ++k) {
-		bwtintv_t *p = &a->mem.a[k];
-		int start = p->info>>32, end = (int32_t)p->info;
-		if (end - start < split_len || p->x[2] > opt->split_width){
-		    atomic_fetch_add(&pass2_noreseeding_mems_num, 1);
-		    continue;
-		}
-		bwt_smem1(bwt, len, seq, (start + end)>>1, p->x[2]+1, &a->mem1, a->tmpv);
-        reseeding_ok = 0;
-        for (i = 0; i < a->mem1.n; ++i){
-//            char buf[128];
-//            int good_mem = 0;
-			if ((uint32_t)a->mem1.a[i].info - (a->mem1.a[i].info>>32) >= opt->min_seed_len){
-				kv_push(bwtintv_t, a->mem, a->mem1.a[i]);
-                atomic_fetch_add(&pass2_valid_mems_num, 1);
-                atomic_fetch_add(&pass2_seed_num, a->mem1.a[i].x[2]);
-//                good_mem = 1;
-                reseeding_ok = 1;
-            }
-//            sprintf(buf, "%d\t%d\t%d\t%ld\t%d\n", 2, (int32_t)(a->mem1.a[i].info >> 32), (int32_t)a->mem1.a[i].info, a->mem1.a[i].x[2], good_mem);
-//            fputs(buf, mem_files[pro_tid]);
-        }
-        atomic_fetch_add(&pass2_all_mems_num, a->mem1.n);
-        atomic_fetch_add(&pass2_reseeding_ok_mems_num, reseeding_ok);
-    }
+//	old_n = a->mem.n;
+//	int reseeding_ok;
+//    for (k = 0; k < old_n; ++k) {
+//		bwtintv_t *p = &a->mem.a[k];
+//		int start = p->info>>32, end = (int32_t)p->info;
+//		if (end - start < split_len || p->x[2] > opt->split_width){
+//		    atomic_fetch_add(&pass2_noreseeding_mems_num, 1);
+//		    continue;
+//		}
+//		bwt_smem1(bwt, len, seq, (start + end)>>1, p->x[2]+1, &a->mem1, a->tmpv);
+//        reseeding_ok = 0;
+//        for (i = 0; i < a->mem1.n; ++i){
+////            char buf[128];
+////            int good_mem = 0;
+//			if ((uint32_t)a->mem1.a[i].info - (a->mem1.a[i].info>>32) >= opt->min_seed_len){
+//				kv_push(bwtintv_t, a->mem, a->mem1.a[i]);
+//                atomic_fetch_add(&pass2_valid_mems_num, 1);
+//                atomic_fetch_add(&pass2_seed_num, a->mem1.a[i].x[2]);
+////                good_mem = 1;
+//                reseeding_ok = 1;
+//            }
+////            sprintf(buf, "%d\t%d\t%d\t%ld\t%d\n", 2, (int32_t)(a->mem1.a[i].info >> 32), (int32_t)a->mem1.a[i].info, a->mem1.a[i].x[2], good_mem);
+////            fputs(buf, mem_files[pro_tid]);
+//        }
+//        atomic_fetch_add(&pass2_all_mems_num, a->mem1.n);
+//        atomic_fetch_add(&pass2_reseeding_ok_mems_num, reseeding_ok);
+//    }
 	PROFILE_END(seed_pass2);
 
 	// third pass: LAST-like
